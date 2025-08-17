@@ -62,6 +62,7 @@ __private node_s* htree(node_s nodes[1024], unsigned repeat[256]){
 	node_s* b;
 	while( (root=phq_pop(&phq)) && (b=phq_pop(&phq)) ){
 		iassert(inode<1024);
+		//dbg_info("r:%u b:%u n:%u", root->repeat, b->repeat, root->repeat+b->repeat);
 		node_s* n = &nodes[inode++];
 		n->value      = 0;
 		n->index      = 0;
@@ -71,6 +72,7 @@ __private node_s* htree(node_s nodes[1024], unsigned repeat[256]){
 		phq_push(&phq, n);
 	}
 	phq_dtor(&phq);
+	iassert(root);
 	return root;
 }
 
@@ -107,12 +109,14 @@ __private unsigned long w32(uint8_t* out, unsigned long pos, unsigned value){
 
 void* huffman_compress(const void* data, const unsigned len){
 	const uint8_t* d = data;
-	const unsigned maxoutput = len+512;
+	const unsigned maxoutput = len*2+512;
 	unsigned repeat[256];
 	node_s   nodes[1024];
 	bitmap_s table[256];
 	uint8_t* out = MANY(uint8_t, maxoutput);
 	m_zero(out);
+	
+	//dbg_info("inp:%u maxout: %u", len, maxoutput);
 	
 	repetition(data, len, repeat);
 	node_s* tree = htree(nodes, repeat);
@@ -121,21 +125,32 @@ void* huffman_compress(const void* data, const unsigned len){
 	unsigned long pos = 0;
 	pos = w16(out, pos, HUFFMAN_FORMAT);
 	pos = w32(out, pos, len);
+	dbg_info("org:%u", len);
 	const unsigned linkoutsize = pos;
 	pos += 4;
-	const unsigned linkused = pos++;
-	uint8_t used = 0;
+	const unsigned linkused = pos;
+	pos += 2;
+	uint16_t used = 0;
 	for( unsigned i = 0; i < 256; ++i ){
 		if( repeat[i] ){
+			//dbg_info("[%u]%u", i, repeat[i]);
 			++used;
 			out[pos++] = i;
 			pos = w32(out, pos, repeat[i]);
 		}
 	}
-	out[linkused] = used;
+	
+	w16(out, linkused, used);
+	dbg_info("used: %u", used);
+	if( !used ){
+		errno = EILSEQ;
+		m_free(out);
+		return NULL;
+	}
 	
 	pos <<= 3;
 	for( unsigned p = 0; p < len; ++p ){
+		//dbg_info("inch: [%u](%u)", p,d[p]);
 		const uint8_t   inch      = d[p];
 		const unsigned count      = table[inch].count;
 		const uint8_t* const bits = table[inch].bits;
@@ -151,6 +166,7 @@ void* huffman_compress(const void* data, const unsigned len){
 			m_free(out);
 			return NULL;;
 		}
+		//dbg_info("%lu/%u", pos, maxoutput*8);
 		if( pos & 0x7 ){
 			for( unsigned i = 0; i < count; ++i ){
 				m_bit_set0(out, pos++, m_bit_get(bits, i));
@@ -166,6 +182,7 @@ void* huffman_compress(const void* data, const unsigned len){
 	}
 	
 	w32(out, linkoutsize, pos);
+	dbg_info("bits: %lu", pos);
 	m_header(out)->len = ROUND_UP(pos,8)>>3;
 	m_fit(out);
 	return out;
@@ -200,10 +217,13 @@ void* huffman_decompress(const void* data, unsigned len){
 	}
 	const unsigned orgBytes = r32(inp, &pos);
 	const unsigned bitSize  = r32(inp, &pos);
+	dbg_info("org: %u bit: %u", orgBytes, bitSize);
 
 	unsigned repeat[256] = {0};
-	const uint8_t used = inp[pos++];
-	
+	const uint16_t used = r16(inp, &pos);
+	dbg_info("used: %u", used);
+	if( !used ) goto ERR_ISQ;
+
 	if( pos+used*5 >= len ) goto ERR_ISQ;
 	for( unsigned i = 0; i < used; ++i ){
 		const uint8_t index = inp[pos++];
@@ -216,17 +236,24 @@ void* huffman_decompress(const void* data, unsigned len){
 	pos <<= 3;
 	out = MANY(uint8_t, orgBytes);
 	unsigned safeinc = 0;
+	dbg_info("start");
 	while( pos < bitSize ){
+		//dbg_info("%lu/%u", pos, bitSize);
 		node_s* node = tree;
 		while( node->child[0] && pos < bitSize ){
+			//dbg_info("bitget");
+			iassert(node->child[1]);
 			const uint8_t b = m_bit_get(inp, pos++);
+			iassert( b <= 1 );
+			//dbg_info("enter node");
 			node = node->child[b];
 		}
 		if( node->child[0] ) goto ERR_ISQ;
 		if( safeinc >= orgBytes ) goto ERR_ISQ; 
+		//dbg_info("store");
 		out[safeinc++] = node->value;
 	}
-	
+	dbg_info("end");
 	m_header(out)->len = safeinc;
 	return out;
 ERR_ISQ:

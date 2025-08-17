@@ -8,7 +8,7 @@
 //(16) FORMAT 0x0150
 //(32) original size in bytes
 //(32) blocksize in bits
-//(8)  table count
+//(16)  table count
 //---  (8)  value
 //---  (32) repeat
 //(N)  compressed block
