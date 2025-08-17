@@ -1,0 +1,47 @@
+#!/bin/bash
+
+[[ ! -d ./test ]] && mkdir ./test
+
+TESTSIZE=(4 256 512 1024 4096 524288)
+
+echo "generate"
+for ts in "${TESTSIZE[@]}"; do
+	fname="./test/data.${ts}.raw"
+	[[ ! -f $fname ]] && dd bs=1024 count=$ts </dev/urandom >$fname
+done
+sync
+
+if [[ ! -d ./build ]]; then
+	meson setup build
+	cd build
+	ninja
+	cd ..
+fi
+
+TIMEFORMAT=%R
+comptime=()
+decmtime=()
+resul=()
+echo "testing"
+for ts in "${TESTSIZE[@]}"; do
+	fname="./test/data.${ts}"
+	fraw="${fname}.raw"
+	fcmp="${fname}.hff"
+	fdec="${fname}.dec"
+	comptime+=($( { time cat "$fraw" | ./build/huffman -c > "$fcmp"; } 2>&1 ))
+	decmtime+=($( { time cat "$fcmp" | ./build/huffman -d > "$fdec"; } 2>&1 ))
+	if [ "$(md5sum $fraw | awk '{print $1}')" = "$(md5sum $fdec | awk '{print $1}')" ]; then
+		resul+=("success")
+	else
+		resul+=("fail")
+	fi
+done
+
+echo "result"
+for i in "${!TESTSIZE[@]}"; do
+	printf "%6ukb " ${TESTSIZE[i]}
+    echo "${comptime[i]}s ${decmtime[i]}s ${resul[i]}"
+done
+
+
+
