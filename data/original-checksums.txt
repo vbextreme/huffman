@@ -1,0 +1,17 @@
+c7aa3e99ef46251faa7db6ab77276977  16mb.txt
+676b0d3f931259e05dff8c2483154036  1mb.txt
+0ea272e2c6dddc0fca8c63db1e2d3c5d  2mb.txt
+193842c6979b5ac7e6cf51ccf31e4a05  32mb.txt
+66d2be98ec1b64a657dc01ead27bb266  4mb.txt
+c726cfaf5e6e8c245887887d2cbecdde  512kb.txt
+9e28742cb9f1a5cb91a8c9fe8d2b77c8  all_sources.txt
+df801e7c8efdb652f745f75653006f65  darwin.txt
+4c39d3514c16dc028c63a09b5ed4ea78  divina_commedia.txt
+5c2600cdb5aa33450bd506db658b3aad  frankestein.txt
+2cf6da6fd49afaa3904f86cffee72444  gulliver.txt
+3ff037d7a60414413395f1e91f1ae54b  mandelbrot.pnm
+57c4a6d33fb13fd5f4bfc45943081141  short.txt
+287247be30ee484b8135a7c17d3b31f5  symposium.txt
+e2cb6e7f7086ebd3aed2ec7bcb8fd029  the_germany_and_the_agricola.txt
+f5d7f8e3706856cfd19726f302cededc  the_republic.txt
+a4288f761135779373b0d1b1747f6e47  vergine_delle_rocce.txt
