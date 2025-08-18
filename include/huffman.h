@@ -11,10 +11,13 @@
 //(16)  table count
 //---  (8)  value
 //---  (32) repeat
+//[0] (32) aligned 1
+//[1] (32) aligned 2
+//[2] (32) aligned 3
 //(N)  compressed block
 
 
-void* huffman_compress(const void* data, const unsigned len);
+void* huffman_compress(const void* data, const unsigned len, int multi);
 void* huffman_decompress(const void* data, unsigned len);
 
 
