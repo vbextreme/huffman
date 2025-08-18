@@ -281,16 +281,16 @@ __private void* m_copy(void* dst, void* src, unsigned count){
 	return dst;
 }
 
-__private void m_bit_set0(void* dst, const unsigned pos, const uint8_t value){	
-	const unsigned i = pos >> 3;
-	const unsigned o = 7 - (pos & 7);
+__private void m_bit_set0(void* dst, const unsigned long pos, const uint8_t value){	
+	const unsigned long i = pos >> 3;
+	const unsigned long o = 7 - (pos & 7);
 	char* d = dst;
 	d[i] |= value << o;
 }
 
-__private void m_bit_set(void* dst, const unsigned pos, const uint8_t value){	
-	const unsigned i = pos >> 3;
-	const unsigned o = 7 - (pos & 7);
+__private void m_bit_set(void* dst, const unsigned long pos, const uint8_t value){	
+	const unsigned long i = pos >> 3;
+	const unsigned long o = 7 - (pos & 7);
 	char* d = dst;
 	if( value ){
 		d[i] |= 1 << o;
@@ -300,9 +300,9 @@ __private void m_bit_set(void* dst, const unsigned pos, const uint8_t value){
 	}
 }
 
-__private uint8_t m_bit_get(const void* const inp, const unsigned pos){
-	const unsigned i = pos >> 3;
-	const unsigned o = 7 - (pos & 7);
+__private uint8_t m_bit_get(const void* const inp, const unsigned long pos){
+	const unsigned long i = pos >> 3;
+	const unsigned long o = 7 - (pos & 7);
 	const char* const in = inp;
 	return (in[i] >> o) & 1;
 }

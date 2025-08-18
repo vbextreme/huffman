@@ -28,12 +28,22 @@ for ts in "${TESTSIZE[@]}"; do
 	fraw="${fname}.raw"
 	fcmp="${fname}.hff"
 	fdec="${fname}.dec"
+	ttest="successfull"
 	comptime+=($( { time cat "$fraw" | ./build/huffman -c > "$fcmp"; } 2>&1 ))
-	decmtime+=($( { time cat "$fcmp" | ./build/huffman -d > "$fdec"; } 2>&1 ))
-	if [ "$(md5sum $fraw | awk '{print $1}')" = "$(md5sum $fdec | awk '{print $1}')" ]; then
-		resul+=("success")
+	if [ $? == 0 ]; then
+		decmtime+=($( { time cat "$fcmp" | ./build/huffman -d > "$fdec"; } 2>&1 ))
+		if [ $? == 0 ]; then
+			if [ "$(md5sum $fraw | awk '{print $1}')" = "$(md5sum $fdec | awk '{print $1}')" ]; then
+				resul+=("successfull")
+			else
+				resul+=("fail")
+			fi
+		else
+			resul+=('err.decompression')
+		fi
 	else
-		resul+=("fail")
+		decmtime+=(-1)
+		resul+=('err.compression')
 	fi
 done
 

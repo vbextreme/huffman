@@ -25,6 +25,7 @@ typedef struct bitmap{
 __private void repetition(const uint8_t* data, const unsigned len, unsigned repeat[256]){
 	memset(repeat, 0, 256*sizeof(unsigned));
 	for( unsigned i = 0; i < len; ++i ){
+		iassert( repeat[data[i]] < UINT32_MAX );
 		++repeat[data[i]];
 	}
 }
@@ -45,7 +46,7 @@ __private node_s* htree(node_s nodes[1024], unsigned repeat[256]){
 	unsigned inode = 0;
 	//creating priority heap queue
 	phq_s phq;
-	phq_ctor(&phq, 512, pcmp, iget, iset);
+	phq_ctor(&phq, 1024, pcmp, iget, iset);
 	for( unsigned i = 0; i < 256; ++i ){
 		if( repeat[i] ){
 			node_s* node = &nodes[inode++];
@@ -83,7 +84,7 @@ __private void htable(node_s* node, bitmap_s prefix[256], bitmap_s bm){
 			prefix[node->value].bits[i]  = bm.bits[i];
 		}
 		prefix[node->value].count = bm.count;
-		prefix[node->value].numbyte = ROUND_UP(bm.count, 8) / 8;
+		prefix[node->value].numbyte = ROUND_UP(bm.count, 8) >> 3;
 	}
 	else{
 		++bm.count;
@@ -107,6 +108,18 @@ __private unsigned long w32(uint8_t* out, unsigned long pos, unsigned value){
 	return pos;
 }
 
+__private unsigned long w64(uint8_t* out, unsigned long pos, uint64_t value){
+	out[pos++] = (value >> 56) & 0xFF;
+	out[pos++] = (value >> 48) & 0xFF;
+	out[pos++] = (value >> 40) & 0xFF;
+	out[pos++] = (value >> 32) & 0xFF;
+	out[pos++] = (value >> 24) & 0xFF;
+	out[pos++] = (value >> 16) & 0xFF;
+	out[pos++] = (value >> 8) & 0xFF;
+	out[pos++] = value & 0xFF;
+	return pos;
+}
+
 void* huffman_compress(const void* data, const unsigned len){
 	const uint8_t* d = data;
 	const unsigned maxoutput = len*2+512;
@@ -116,7 +129,7 @@ void* huffman_compress(const void* data, const unsigned len){
 	uint8_t* out = MANY(uint8_t, maxoutput);
 	m_zero(out);
 	
-	//dbg_info("inp:%u maxout: %u", len, maxoutput);
+	dbg_info("inp:%u maxout: %u", len, maxoutput);
 	
 	repetition(data, len, repeat);
 	node_s* tree = htree(nodes, repeat);
@@ -127,7 +140,7 @@ void* huffman_compress(const void* data, const unsigned len){
 	pos = w32(out, pos, len);
 	dbg_info("org:%u", len);
 	const unsigned linkoutsize = pos;
-	pos += 4;
+	pos += 8;
 	const unsigned linkused = pos;
 	pos += 2;
 	uint16_t used = 0;
@@ -181,7 +194,7 @@ void* huffman_compress(const void* data, const unsigned len){
 		}
 	}
 	
-	w32(out, linkoutsize, pos);
+	w64(out, linkoutsize, pos);
 	dbg_info("bits: %lu", pos);
 	m_header(out)->len = ROUND_UP(pos,8)>>3;
 	m_fit(out);
@@ -206,6 +219,25 @@ __private uint32_t r32(const uint8_t* inp, unsigned long* pos){
 	return ret;
 }
 
+__private uint64_t r64(const uint8_t* inp, unsigned long* pos){
+	uint64_t ret = inp[(*pos)++];
+	ret <<= 8;
+	ret |=  inp[(*pos)++];
+	ret <<= 8;
+	ret |=  inp[(*pos)++];
+	ret <<= 8;
+	ret |=  inp[(*pos)++];
+	ret <<= 8;
+	ret |=  inp[(*pos)++];
+	ret <<= 8;
+	ret |=  inp[(*pos)++];
+	ret <<= 8;
+	ret |=  inp[(*pos)++];
+	ret <<= 8;
+	ret |=  inp[(*pos)++];
+	return ret;
+}
+
 void* huffman_decompress(const void* data, unsigned len){
 	uint8_t* out = NULL;
 	const uint8_t* inp = data;
@@ -215,9 +247,9 @@ void* huffman_decompress(const void* data, unsigned len){
 		errno = ENOEXEC;
 		return NULL;
 	}
-	const unsigned orgBytes = r32(inp, &pos);
-	const unsigned bitSize  = r32(inp, &pos);
-	dbg_info("org: %u bit: %u", orgBytes, bitSize);
+	const unsigned      orgBytes = r32(inp, &pos);
+	const unsigned long bitSize  = r64(inp, &pos);
+	dbg_info("org: %u bit: %lu", orgBytes, bitSize);
 
 	unsigned repeat[256] = {0};
 	const uint16_t used = r16(inp, &pos);

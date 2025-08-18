@@ -7,7 +7,7 @@
 //(size in bits)
 //(16) FORMAT 0x0150
 //(32) original size in bytes
-//(32) blocksize in bits
+//(64) blocksize in bits
 //(16)  table count
 //---  (8)  value
 //---  (32) repeat
