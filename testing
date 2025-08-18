@@ -19,9 +19,11 @@ if [[ ! -d ./build ]]; then
 fi
 
 TIMEFORMAT=%R
-comptime=()
-decmtime=()
-resul=()
+comptime=('compression')
+decmtime=('decompression')
+rapp=('compression ratio')
+resul=('result')
+
 echo "testing"
 for ts in "${TESTSIZE[@]}"; do
 	fname="./test/data.${ts}"
@@ -35,23 +37,28 @@ for ts in "${TESTSIZE[@]}"; do
 		if [ $? == 0 ]; then
 			if [ "$(md5sum $fraw | awk '{print $1}')" = "$(md5sum $fdec | awk '{print $1}')" ]; then
 				resul+=("successfull")
+				ssrc=$(stat -c %s ${fraw})
+				scom=$(stat -c %s ${fcmp})
+				rapp+=($(awk -v o=$ssrc -v c=$scom 'BEGIN { printf "%.2f", (1 - c/o) * 100 }'))
 			else
+				rapp+=(-1)
 				resul+=("fail")
 			fi
 		else
+			rapp+=(-1)
 			resul+=('err.decompression')
 		fi
 	else
 		decmtime+=(-1)
+		rapp+=(-1)
 		resul+=('err.compression')
 	fi
 done
 
 echo "result"
+TESTSIZE=("size" "${TESTSIZE[@]}")
 for i in "${!TESTSIZE[@]}"; do
-	printf "%6ukb " ${TESTSIZE[i]}
-    echo "${comptime[i]}s ${decmtime[i]}s ${resul[i]}"
-done
-
+	echo -e "${TESTSIZE[i]}:${comptime[i]}s:${decmtime[i]}s:%${rapp[i]}:${resul[i]}"
+done | column -t -s :
 
 
