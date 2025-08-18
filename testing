@@ -1,13 +1,16 @@
 #!/bin/bash
 
-[[ ! -d ./test ]] && mkdir ./test
-
+TESTDIR='./data'
 TESTSIZE=(4 256 512 1024 4096 524288)
 
-echo "generate"
+[[ ! -d $TESTDIR ]] && mkdir $TESTDIR
+
+testfile=(${TESTDIR}/*)
+
 for ts in "${TESTSIZE[@]}"; do
-	fname="./test/data.${ts}.raw"
-	[[ ! -f $fname ]] && dd bs=1024 count=$ts </dev/urandom >$fname
+	fname="${TESTDIR}/data.${ts}.raw"
+	[[ ! -f $fname ]] && dd bs=1024 count=$ts </dev/urandom >$fname 2>/dev/null
+	testfile+=($fname)
 done
 sync
 
@@ -24,20 +27,16 @@ decmtime=('decompression')
 rapp=('compression ratio')
 resul=('result')
 
-echo "testing"
-for ts in "${TESTSIZE[@]}"; do
-	fname="./test/data.${ts}"
-	fraw="${fname}.raw"
+for fname in "${testfile[@]}"; do
 	fcmp="${fname}.hff"
 	fdec="${fname}.dec"
-	ttest="successfull"
-	comptime+=($( { time cat "$fraw" | ./build/huffman -c > "$fcmp"; } 2>&1 ))
+	comptime+=($( { time cat "$fname" | ./build/huffman -c > "$fcmp"; } 2>&1 ))
 	if [ $? == 0 ]; then
 		decmtime+=($( { time cat "$fcmp" | ./build/huffman -d > "$fdec"; } 2>&1 ))
 		if [ $? == 0 ]; then
-			if [ "$(md5sum $fraw | awk '{print $1}')" = "$(md5sum $fdec | awk '{print $1}')" ]; then
+			if [ "$(md5sum $fname | awk '{print $1}')" = "$(md5sum $fdec | awk '{print $1}')" ]; then
 				resul+=("successfull")
-				ssrc=$(stat -c %s ${fraw})
+				ssrc=$(stat -c %s ${fname})
 				scom=$(stat -c %s ${fcmp})
 				rapp+=($(awk -v o=$ssrc -v c=$scom 'BEGIN { printf "%.2f", (1 - c/o) * 100 }'))
 			else
@@ -55,10 +54,13 @@ for ts in "${TESTSIZE[@]}"; do
 	fi
 done
 
-echo "result"
-TESTSIZE=("size" "${TESTSIZE[@]}")
-for i in "${!TESTSIZE[@]}"; do
-	echo -e "${TESTSIZE[i]}:${comptime[i]}s:${decmtime[i]}s:%${rapp[i]}:${resul[i]}"
+testfile=("file name" "${testfile[@]}")
+for i in "${!testfile[@]}"; do
+	echo -e "${testfile[i]}:${comptime[i]}s:${decmtime[i]}s:%${rapp[i]}:${resul[i]}"
 done | column -t -s :
+
+rm $TESTDIR/*.raw
+rm $TESTDIR/*.hff
+rm $TESTDIR/*.dec
 
 
