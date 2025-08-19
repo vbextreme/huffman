@@ -11,7 +11,7 @@
 #define HUFFMAN_PFORMAT 0xF150
 
 #define ANCHOR_MAX 4096
-#define MULTI_MAX  3
+#define MULTI_MAX  4
 
 typedef struct node{
 	struct node* child[2];
@@ -124,36 +124,12 @@ __private unsigned long w64(uint8_t* out, unsigned long pos, uint64_t value){
 	return pos;
 }
 
-unsigned merge_anchor(unsigned anchor[ANCHOR_MAX], const unsigned count){
-	unsigned reduced[MULTI_MAX];
-	if( count > MULTI_MAX ){
-		dbg_info("merge %u > %u", count, MULTI_MAX);
-		unsigned start = anchor[0];
-		unsigned end   = anchor[count - 1];
-		for( unsigned i = 0; i < MULTI_MAX; ++i ){
-			float t = (MULTI_MAX == 1) ? 0.0f : (float)i / (MULTI_MAX - 1);
-			reduced[i] = (unsigned)(start + t * (end - start) + 0.5f);
-		}
-		for( unsigned i = 0; i < MULTI_MAX; ++i ){
-			anchor[i] = reduced[i];
-			dbg_info("merge[%u]: %u", i, anchor[i]);
-		}
-		return 4;
-	}
-	else{
-		dbg_info("not need merge %u < %u", count, MULTI_MAX);
-		return count;
-	}
-}
-
-void* huffman_compress(const void* data, const unsigned len, int multi){
+void* huffman_compress(const void* data, const unsigned len){
 	const uint8_t* d = data;
 	const unsigned maxoutput = len*2+512;
 	unsigned repeat[256];
 	node_s   nodes[1024];
 	bitmap_s table[256];
-	unsigned anchor[ANCHOR_MAX];
-	unsigned ianch = 0;
 	
 	uint8_t* out = MANY(uint8_t, maxoutput);
 	m_zero(out);
@@ -189,8 +165,6 @@ void* huffman_compress(const void* data, const unsigned len, int multi){
 		m_free(out);
 		return NULL;
 	}
-	const unsigned linkmulti = pos;
-	if( multi ) pos += MULTI_MAX * 4;
 
 	pos <<= 3;
 	for( unsigned p = 0; p < len; ++p ){
@@ -217,10 +191,6 @@ void* huffman_compress(const void* data, const unsigned len, int multi){
 			}
 		}
 		else{
-			if( multi ){
-				if( ianch >= ANCHOR_MAX ) ianch = merge_anchor(anchor, ianch);
-				anchor[ianch++] = kp;
-			}
 			//dbg_info("achor %u", kp);
 			const unsigned np = table[inch].numbyte;
 			for( unsigned i = 0; i < np; ++i ){
@@ -233,18 +203,6 @@ void* huffman_compress(const void* data, const unsigned len, int multi){
 	
 	w64(out, linkoutsize, pos);
 	dbg_info("bits: %lu", pos);
-	
-	if( multi ){
-		w16(out, 0, HUFFMAN_PFORMAT);
-		ianch = merge_anchor(anchor, ianch);
-		pos = linkmulti;
-		for( unsigned i = 0; i < ianch; ++i ){
-			pos = w32(out, pos, anchor[i]);
-		}
-		for( unsigned i = ianch; i < MULTI_MAX; ++i ){
-			pos = w32(out, pos, 0);
-		}
-	}
 	
 	m_header(out)->len = ROUND_UP(pos,8)>>3;
 	m_fit(out);
@@ -292,10 +250,20 @@ void* huffman_decompress(const void* data, unsigned len){
 	uint8_t* out = NULL;
 	const uint8_t* inp = data;
 	unsigned long pos = 0;
+	unsigned anchor[MULTI_MAX+1];
+	unsigned ianch;
+	
 	if( len < 17 ) goto ERR_ISQ;
-	if( r16(inp, &pos) != HUFFMAN_FORMAT ){
-		errno = ENOEXEC;
-		return NULL;
+	uint16_t format = r16(inp, &pos);
+	unsigned parallel = 0;
+	if( format != HUFFMAN_FORMAT ){
+		if( format == HUFFMAN_PFORMAT ){
+			parallel = 1;
+		}
+		else{
+			errno = ENOEXEC;
+			return NULL;
+		}
 	}
 	const unsigned      orgBytes = r32(inp, &pos);
 	const unsigned long bitSize  = r64(inp, &pos);
@@ -312,12 +280,25 @@ void* huffman_decompress(const void* data, unsigned len){
 		repeat[index] = r32(inp, &pos);
 	}
 	
+
 	node_s nodes[1024];
 	node_s* tree = htree(nodes, repeat);
 	
-	pos <<= 3;
+	if( parallel ){
+		anchor[0] = pos;
+		anchor[1] = r32(inp, &pos);
+		anchor[2] = r32(inp, &pos);
+		anchor[3] = r32(inp, &pos);
+		for( ianch = 1; ianch < 4 && anchor[ianch]; ++ianch );
+	}
+	else{
+		anchor[0] = pos;
+		ianch = 1;
+	}
+	
 	out = MANY(uint8_t, orgBytes);
 	unsigned safeinc = 0;
+	pos <<= 3;
 	dbg_info("start");
 	while( pos < bitSize ){
 		//dbg_info("%lu/%u", pos, bitSize);
@@ -336,6 +317,7 @@ void* huffman_decompress(const void* data, unsigned len){
 		out[safeinc++] = node->value;
 	}
 	dbg_info("end");
+	iassert(orgBytes == safeinc);
 	m_header(out)->len = safeinc;
 	return out;
 ERR_ISQ:

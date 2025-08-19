@@ -6,7 +6,6 @@
 typedef enum{
 	OPT_c,
 	OPT_d,
-	OPT_p,
 	OPT_i,
 	OPT_h
 }options_e;
@@ -14,7 +13,6 @@ typedef enum{
 option_s opt[] = {
 	{ 'c', "--compress"  , "compress data in stdin"                                    , OPT_NOARG          , 0, NULL},
 	{ 'd', "--decompress", "decompress data in stdin"                                  , OPT_NOARG          , 0, NULL},
-	{ 'p', "--parallel"  , "enable parallel decompression"                             , OPT_NOARG          , 0, NULL},	
 	{ 'i', "--info"      , "in compression mode display in stderr the % of compression", OPT_NOARG          , 0, NULL},	
 	{ 'h', "--help"      , "display this"                                              , OPT_NOARG | OPT_END, 0, NULL},
 };
@@ -41,7 +39,7 @@ int main(int argc, char** argv){
 	__free uint8_t* out = NULL;
 	errno = 0;
 	if( opt[OPT_c].set ){
-		out = huffman_compress(inp, m_header(inp)->len, opt[OPT_p].set);
+		out = huffman_compress(inp, m_header(inp)->len);
 		if( opt[OPT_i].set ){
 			fprintf(stderr, "compress %u -> %u %%%f", m_header(inp)->len, m_header(out)->len, 100.0-(100.0*m_header(out)->len/m_header(inp)->len));
 		}
