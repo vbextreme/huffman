@@ -31,6 +31,16 @@ __private uint8_t* fd_slurp(int fd){
 	return inp;
 }
 
+__private void fd_splash(int fd, const void* data, size_t size){
+	char* d = (char*)data;
+	size_t out = 0;
+	while( out < size ){
+		const size_t block = size-out < BUF_SIZE ? size-out : BUF_SIZE;
+		if( write(fd, &d[out], block) < (ssize_t)block ) die("error on writing: %m");
+		out += block;
+	}
+}
+
 int main(int argc, char** argv){
 	argv_parse(opt, argc, argv);
 	if( opt[OPT_h].set ){
@@ -49,7 +59,7 @@ int main(int argc, char** argv){
 			out = huffman_compress(inp, m_header(inp)->len);
 		}
 		if( opt[OPT_i].set ){
-			fprintf(stderr, "compress %u -> %u %%%f", m_header(inp)->len, m_header(out)->len, 100.0-(100.0*m_header(out)->len/m_header(inp)->len));
+			fprintf(stderr, "compress %lu -> %lu %%%f", m_header(inp)->len, m_header(out)->len, 100.0-(100.0*m_header(out)->len/m_header(inp)->len));
 		}
 	}
 	if( opt[OPT_d].set ){
@@ -65,7 +75,6 @@ int main(int argc, char** argv){
 		else die("huffman error: %m");
 	}
 	
-	write(1, out, m_header(out)->len);
-	
+	fd_splash(1, out, m_header(out)->len);
 	return 0;
 }

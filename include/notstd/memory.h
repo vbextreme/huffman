@@ -52,11 +52,11 @@ extern unsigned PAGE_SIZE;
 
 typedef struct hmem{
 	__rdwr mcleanup_f cleanup;
-	__rdwr unsigned   len;
 	__rdon unsigned   sof;
 	__rdon unsigned   refs;
-	__rdon unsigned   count; // max numbers of objects
 	__prv8 uint32_t   flags;
+	__rdwr size_t     len;
+	__rdon size_t     count; // max numbers of objects
 }hmem_s;
 
 typedef struct mslice{
@@ -81,7 +81,7 @@ void m_free(void* addr);
 void* m_borrowed(void* mem);
 
 //delete elements, index < hm->len, count > 0, decrease len and move memory if required
-void* m_delete(void* mem, unsigned index, unsigned count);
+void* m_delete(void* mem, size_t index, size_t count);
 
 //increase space and increment len, index <= hm->len, count > 0
 void* m_widen(void* mem, size_t index, size_t count);
@@ -122,13 +122,13 @@ __private hmem_s* m_header(void* addr){
 }
 
 //return all size in byte without header
-__private unsigned m_size(void* addr){
+__private size_t m_size(void* addr){
 	hmem_s* hm = m_header(addr);
 	return hm->count * hm->sof - sizeof(hmem_s);
 }
 
 //return count memory can be used
-__private unsigned m_available(void* addr){
+__private size_t m_available(void* addr){
 	hmem_s* hm = m_header(addr);
 	return hm->count - hm->len;
 }
@@ -179,13 +179,13 @@ __private void* m_fit(void* mem){
 }
 
 //WARNING in this function need pass &mem and not mem because return index of pushed element and not new memory addrresssss
-__private unsigned m_ipush(void* dst){
+__private size_t m_ipush(void* dst){
 	*(void**)dst = m_grow(*(void**)dst, 1);
 	return m_header(*(void**)dst)->len++;
 }
 
 __private void* m_push(void* arr, void* src){
-	unsigned index = m_ipush(&arr);
+	size_t index = m_ipush(&arr);
 	void* dst = m_addressing(arr, index);
 	memcpy(dst, src, m_header(arr)->sof);
 	return arr;
@@ -227,14 +227,14 @@ __private long m_ibsearch(void* mem, void* search, cmp_f cmp){
 }
 
 //position by index: -1 == last element, < 0 index by right, >=0 index by left, if index > len index = len-1
-__private unsigned m_index(void* mem, long index){
+__private size_t m_index(void* mem, long index){
 	hmem_s* hm = m_header(mem);
 	if( !hm->len ) return 0;
 	if( labs(index) > (long)hm->len ){
 		if( index < 0 ) return 0;
 		else            return hm->len-1;
 	}
-	return index < 0 ? hm->len - index: index;
+	return index < 0 ? hm->len - index: (size_t)index;
 }
 
 //same index but return address
@@ -267,7 +267,7 @@ __private void* m_nullterm(void* mem){
 }
 
 //copy if count = 0 copy all src in dst, all dst is reset, src and dst need same type
-__private void* m_copy(void* dst, void* src, unsigned count){
+__private void* m_copy(void* dst, void* src, size_t count){
 	m_clear(dst);
 	const hmem_s* hsrc = m_header(src);
 	if( !count ){
@@ -281,16 +281,16 @@ __private void* m_copy(void* dst, void* src, unsigned count){
 	return dst;
 }
 
-__private void m_bit_set0(void* dst, const unsigned long pos, const uint8_t value){	
-	const unsigned long i = pos >> 3;
-	const unsigned long o = 7 - (pos & 7);
+__private void m_bit_set0(void* dst, const size_t pos, const uint8_t value){	
+	const size_t i = pos >> 3;
+	const size_t o = 7 - (pos & 7);
 	char* d = dst;
 	d[i] |= value << o;
 }
 
-__private void m_bit_set(void* dst, const unsigned long pos, const uint8_t value){	
-	const unsigned long i = pos >> 3;
-	const unsigned long o = 7 - (pos & 7);
+__private void m_bit_set(void* dst, const size_t pos, const uint8_t value){	
+	const size_t i = pos >> 3;
+	const size_t o = 7 - (pos & 7);
 	char* d = dst;
 	if( value ){
 		d[i] |= 1 << o;
@@ -300,16 +300,16 @@ __private void m_bit_set(void* dst, const unsigned long pos, const uint8_t value
 	}
 }
 
-__private uint8_t m_bit_get(const void* const inp, const unsigned long pos){
-	const unsigned long i = pos >> 3;
-	const unsigned long o = 7 - (pos & 7);
+__private uint8_t m_bit_get(const void* const inp, size_t pos){
+	const size_t i = pos >> 3;
+	const size_t o = 7 - (pos & 7);
 	const char* const in = inp;
 	return (in[i] >> o) & 1;
 }
 
 __unsafe_end;
 
-#define mforeach(M,IT) for(unsigned IT = 0; IT < m_header(M)->len; ++IT)
+#define mforeach(M,IT) for(size_t IT = 0; IT < m_header(M)->len; ++IT)
 
 
 /************/

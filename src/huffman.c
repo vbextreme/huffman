@@ -12,7 +12,7 @@
 
 typedef struct node{
 	struct node* child[2];
-	unsigned     repeat;
+	size_t       repeat;
 	unsigned     index;
 	uint8_t      value;
 }node_s;
@@ -23,12 +23,13 @@ typedef struct bitmap{
 	uint8_t numbyte;
 }bitmap_s;
 
+#undef __AVX__
 #ifdef __AVX__
 #include <immintrin.h>
 #define AVX_BYTE 32
-__private void repetition(const uint8_t* data, const unsigned len, unsigned repeat[256]){
+__private void repetition(const uint8_t* data, const size_t len, size_t repeat[256]){
 	memset(repeat, 0, 256*sizeof(unsigned));
-	unsigned i = 0;
+	size_t i = 0;
 	for(; i + AVX_BYTE < len; i += AVX_BYTE ){
 		__m256i v = _mm256_loadu_si256((const __m256i*)&data[i]);
 		alignas(AVX_BYTE) uint8_t tmp[AVX_BYTE];
@@ -43,9 +44,9 @@ __private void repetition(const uint8_t* data, const unsigned len, unsigned repe
 	}
 }
 #else
-__private void repetition(const uint8_t* data, const unsigned len, unsigned repeat[256]){
+__private void repetition(const uint8_t* data, const size_t len, size_t repeat[256]){
 	memset(repeat, 0, 256*sizeof(unsigned));
-	for( unsigned i = 0; i < len; ++i ){
+	for( size_t i = 0; i < len; ++i ){
 		iassert( repeat[data[i]] < UINT32_MAX );
 		++repeat[data[i]];
 	}
@@ -64,7 +65,7 @@ __private void iset(void* a, unsigned i){
 	((node_s*)a)->index = i;
 }
 
-__private node_s* htree(node_s nodes[1024], unsigned repeat[256]){
+__private node_s* htree(node_s nodes[1024], size_t repeat[256]){
 	unsigned inode = 0;
 	//creating priority heap queue
 	phq_s phq;
@@ -122,14 +123,6 @@ __private unsigned long w16(uint8_t* out, unsigned long pos, unsigned value){
 	return pos;
 }
 
-__private unsigned long w32(uint8_t* out, unsigned long pos, unsigned value){
-	out[pos++] = (value >> 24) & 0xFF;
-	out[pos++] = (value >> 16) & 0xFF;
-	out[pos++] = (value >> 8) & 0xFF;
-	out[pos++] = value & 0xFF;
-	return pos;
-}
-
 __private unsigned long w64(uint8_t* out, unsigned long pos, uint64_t value){
 	out[pos++] = (value >> 56) & 0xFF;
 	out[pos++] = (value >> 48) & 0xFF;
@@ -142,17 +135,17 @@ __private unsigned long w64(uint8_t* out, unsigned long pos, uint64_t value){
 	return pos;
 }
 
-void* huffman_compress(const void* data, const unsigned len){
+void* huffman_compress(const void* data, const size_t len){
 	const uint8_t* d = data;
-	const unsigned maxoutput = len*2+512;
-	unsigned repeat[256];
+	const size_t maxoutput = len*2+512;
+	size_t   repeat[256];
 	node_s   nodes[1024];
 	bitmap_s table[256];
 	
 	uint8_t* out = MANY(uint8_t, maxoutput);
 	m_zero(out);
 	
-	dbg_info("inp:%u maxout: %u", len, maxoutput);
+	dbg_info("inp:%lu maxout: %lu", len, maxoutput);
 	
 	repetition(data, len, repeat);
 	node_s* tree = htree(nodes, repeat);
@@ -160,25 +153,26 @@ void* huffman_compress(const void* data, const unsigned len){
 	
 	unsigned long pos = 0;
 	pos = w16(out, pos, HUFFMAN_FORMAT);
-	pos = w32(out, pos, len);
-	dbg_info("org:%u", len);
+	pos = w64(out, pos, len);
+	dbg_info("org:%lu", len);
 	const unsigned linkoutsize = pos;
-	pos += 8;
+	pos += sizeof len;
 	const unsigned linkused = pos;
-	pos += 2;
 	uint16_t used = 0;
+	pos += sizeof used;
 	for( unsigned i = 0; i < 256; ++i ){
 		if( repeat[i] ){
-			//dbg_info("[%u]%u", i, repeat[i]);
+			dbg_info("[%u] %lu", i, repeat[i]);
 			++used;
 			out[pos++] = i;
-			pos = w32(out, pos, repeat[i]);
+			pos = w64(out, pos, repeat[i]);
 		}
 	}
 	
 	w16(out, linkused, used);
 	dbg_info("used: %u", used);
 	if( !used ){
+		dbg_error("no used elements");
 		errno = EILSEQ;
 		m_free(out);
 		return NULL;
@@ -186,14 +180,15 @@ void* huffman_compress(const void* data, const unsigned len){
 	
 	pos <<= 3;
 	//unsigned kp = pos >> 3;
-	for( unsigned p = 0; p < len; ++p ){
+	for( size_t p = 0; p < len; ++p ){
 		//dbg_info("inch: [%u](%u)", p,d[p]);
 		const uint8_t   inch      = d[p];
 		const unsigned  count     = table[inch].count;
 		const unsigned  np        = table[inch].numbyte;
 		const uint8_t* const bits = table[inch].bits;
-		unsigned kp = pos >> 3;
+		size_t kp = pos >> 3;
 		if( kp >= maxoutput ){
+			dbg_error("required more size");
 			errno = ENOBUFS;
 			m_free(out);
 			return NULL;
@@ -204,9 +199,9 @@ void* huffman_compress(const void* data, const unsigned len){
 			return NULL;;
 		}
 		
-		const unsigned shift = pos & 0x7;
+		const uint8_t shift = pos & 0x7;
 		if( shift ){
-			const unsigned ishift = 8-shift;
+			const uint8_t ishift = 8-shift;
 			for( unsigned i = 0; i < np; ++i ){
 				out[kp++] |= bits[i] >> shift;
 				out[kp]   |= bits[i] << ishift;
@@ -218,7 +213,6 @@ void* huffman_compress(const void* data, const unsigned len){
 			}
 		}
 		pos += count;
-
 /*
 		if( pos & 0x7 ){
 			for( unsigned i = 0; i < count; ++i ){
@@ -250,17 +244,6 @@ __private uint16_t r16(const uint8_t* inp, unsigned long* pos){
 	return ret;
 }
 
-__private uint32_t r32(const uint8_t* inp, unsigned long* pos){
-	uint32_t ret = inp[(*pos)++];
-	ret <<= 8;
-	ret |=  inp[(*pos)++];
-	ret <<= 8;
-	ret |=  inp[(*pos)++];
-	ret <<= 8;
-	ret |=  inp[(*pos)++];
-	return ret;
-}
-
 __private uint64_t r64(const uint8_t* inp, unsigned long* pos){
 	uint64_t ret = inp[(*pos)++];
 	ret <<= 8;
@@ -280,11 +263,11 @@ __private uint64_t r64(const uint8_t* inp, unsigned long* pos){
 	return ret;
 }
 
-void* huffman_decompress(const void* data, unsigned len){
+void* huffman_decompress(const void* data, const size_t len){
 	dbg_info("");
 	uint8_t* out = NULL;
 	const uint8_t* inp = data;
-	unsigned long pos = 0;
+	size_t pos = 0;
 	
 	if( len < 17 ) goto ERR_ISQ;
 	uint16_t format = r16(inp, &pos);
@@ -292,27 +275,26 @@ void* huffman_decompress(const void* data, unsigned len){
 		errno = ENOEXEC;
 		return NULL;
 	}
-	const unsigned      orgBytes = r32(inp, &pos);
-	const unsigned long bitSize  = r64(inp, &pos);
-	dbg_info("org: %u bit: %lu", orgBytes, bitSize);
-
-	unsigned repeat[256] = {0};
+	const size_t orgBytes = r64(inp, &pos);
+	const size_t bitSize  = r64(inp, &pos);
+	dbg_info("org: %lu bit: %lu", orgBytes, bitSize);
+	
+	size_t repeat[256] = {0};
 	const uint16_t used = r16(inp, &pos);
 	dbg_info("used: %u", used);
 	if( !used ) goto ERR_ISQ;
-
-	if( pos+used*5 >= len ) goto ERR_ISQ;
+	
+	if( pos+used*sizeof pos >= len ) goto ERR_ISQ;
 	for( unsigned i = 0; i < used; ++i ){
 		const uint8_t index = inp[pos++];
-		repeat[index] = r32(inp, &pos);
+		repeat[index] = r64(inp, &pos);
 	}
 	
-
 	node_s nodes[1024];
 	node_s* tree = htree(nodes, repeat);
 	
 	out = MANY(uint8_t, orgBytes);
-	unsigned safeinc = 0;
+	size_t safeinc = 0;
 	pos <<= 3;
 	dbg_info("start");
 	while( pos < bitSize ){

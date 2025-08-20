@@ -84,7 +84,7 @@ void* m_borrowed(void* mem){
 	return mem;
 }
 
-void* m_delete(void* mem, unsigned index, unsigned count){
+void* m_delete(void* mem, size_t index, size_t count){
 	hmem_s* hm = m_header(mem);
 	if( !count || index >= hm->len){
 		errno = EINVAL;
