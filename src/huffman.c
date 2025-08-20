@@ -23,7 +23,6 @@ typedef struct bitmap{
 	uint8_t numbyte;
 }bitmap_s;
 
-#undef __AVX__
 #ifdef __AVX__
 #include <immintrin.h>
 #define AVX_BYTE 32
