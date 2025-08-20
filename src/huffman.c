@@ -183,14 +183,15 @@ void* huffman_compress(const void* data, const unsigned len){
 		m_free(out);
 		return NULL;
 	}
-
+	
 	pos <<= 3;
+	//unsigned kp = pos >> 3;
 	for( unsigned p = 0; p < len; ++p ){
 		//dbg_info("inch: [%u](%u)", p,d[p]);
 		const uint8_t   inch      = d[p];
-		const unsigned count      = table[inch].count;
+		const unsigned  count     = table[inch].count;
+		const unsigned  np        = table[inch].numbyte;
 		const uint8_t* const bits = table[inch].bits;
-		iassert(table[inch].count);
 		unsigned kp = pos >> 3;
 		if( kp >= maxoutput ){
 			errno = ENOBUFS;
@@ -202,7 +203,23 @@ void* huffman_compress(const void* data, const unsigned len){
 			m_free(out);
 			return NULL;;
 		}
-		//dbg_info("%lu/%u", pos, maxoutput*8);
+		
+		const unsigned shift = pos & 0x7;
+		if( shift ){
+			const unsigned ishift = 8-shift;
+			for( unsigned i = 0; i < np; ++i ){
+				out[kp++] |= bits[i] >> shift;
+				out[kp]   |= bits[i] << ishift;
+			}
+		}
+		else{
+			for( unsigned i = 0; i < np; ++i ){
+				out[kp++] = bits[i];
+			}
+		}
+		pos += count;
+
+/*
 		if( pos & 0x7 ){
 			for( unsigned i = 0; i < count; ++i ){
 				m_bit_set0(out, pos++, m_bit_get(bits, i));
@@ -216,9 +233,8 @@ void* huffman_compress(const void* data, const unsigned len){
 			}
 			pos += count;
 		}
+*/
 	}
-	
-	
 	w64(out, linkoutsize, pos);
 	dbg_info("bits: %lu", pos);
 	
