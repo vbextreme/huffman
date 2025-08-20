@@ -1,4 +1,3 @@
-#include <notstd/opt.h>
 #include <notstd/str.h>
 #include <notstd/phq.h>
 #include <fcntl.h>
@@ -6,9 +5,6 @@
 
 #include <limits.h>
 #include <huffman.h>
-
-#define HUFFMAN_FORMAT  0x0150
-#define HUFFMAN_PFORMAT 0xF150
 
 #define ANCHOR_MAX 4096
 #define MULTI_MAX  4
@@ -247,23 +243,16 @@ __private uint64_t r64(const uint8_t* inp, unsigned long* pos){
 }
 
 void* huffman_decompress(const void* data, unsigned len){
+	dbg_info("");
 	uint8_t* out = NULL;
 	const uint8_t* inp = data;
 	unsigned long pos = 0;
-	unsigned anchor[MULTI_MAX+1];
-	unsigned ianch;
 	
 	if( len < 17 ) goto ERR_ISQ;
 	uint16_t format = r16(inp, &pos);
-	unsigned parallel = 0;
 	if( format != HUFFMAN_FORMAT ){
-		if( format == HUFFMAN_PFORMAT ){
-			parallel = 1;
-		}
-		else{
-			errno = ENOEXEC;
-			return NULL;
-		}
+		errno = ENOEXEC;
+		return NULL;
 	}
 	const unsigned      orgBytes = r32(inp, &pos);
 	const unsigned long bitSize  = r64(inp, &pos);
@@ -283,18 +272,6 @@ void* huffman_decompress(const void* data, unsigned len){
 
 	node_s nodes[1024];
 	node_s* tree = htree(nodes, repeat);
-	
-	if( parallel ){
-		anchor[0] = pos;
-		anchor[1] = r32(inp, &pos);
-		anchor[2] = r32(inp, &pos);
-		anchor[3] = r32(inp, &pos);
-		for( ianch = 1; ianch < 4 && anchor[ianch]; ++ianch );
-	}
-	else{
-		anchor[0] = pos;
-		ianch = 1;
-	}
 	
 	out = MANY(uint8_t, orgBytes);
 	unsigned safeinc = 0;

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+TESTFLAGS=''
+[[ "$1" == "-b" ]] && TESTFLAGS='-b'
+
 TESTDIR='./data'
 TESTSIZE=(4 256 512 1024 4096 524288)
 
@@ -30,9 +33,9 @@ resul=('result')
 for fname in "${testfile[@]}"; do
 	fcmp="${fname}.hff"
 	fdec="${fname}.dec"
-	comptime+=($( { time cat "$fname" | ./build/huffman -c > "$fcmp"; } 2>&1 ))
+	comptime+=($( { time cat "$fname" | ./build/huffman $TESTFLAGS -c > "$fcmp"; } 2>&1 ))
 	if [ $? == 0 ]; then
-		decmtime+=($( { time cat "$fcmp" | ./build/huffman -d > "$fdec"; } 2>&1 ))
+		decmtime+=($( { time cat "$fcmp" | ./build/huffman $TESTFLAGS -d > "$fdec"; } 2>&1 ))
 		if [ $? == 0 ]; then
 			if [ "$(md5sum $fname | awk '{print $1}')" = "$(md5sum $fdec | awk '{print $1}')" ]; then
 				resul+=("successfull")

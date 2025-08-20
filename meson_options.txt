@@ -5,7 +5,7 @@ option('shortfn', type: 'integer', value: 1, description: 'set debug function al
 option('olor', type: 'integer', value: 4, description: 'color debug, 0 disable 1 active')
 option('assert', type: 'boolean', value: false, description: 'enable assertion')
 option('optimize', type: 'integer', value: 2, description: 'enable optimization')
-option('openmp', type: 'integer', value: 1, description: 'enable openmp')
+option('openmp', type: 'boolean', value: true, description: 'enable openmp')
 option('gprof', type: 'integer', value: 0, description: 'enable gprof')
 option('autovectorization', type: 'integer', value: 1, description: 'enable vectorization')
 

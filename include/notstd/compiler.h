@@ -58,13 +58,22 @@
 #if defined OMP_ENABLE && !defined __clang__
 	#define __parallel(A)  DO_PRAGMA(omp parallel A)
 	#define __parallef     DO_PRAGMA(omp parallel for)
+	#define __parallefo    DO_PRAGMA(omp parallel for ordered)
 	#define __paralleft(V) DO_PRAGMA(omp parallel for num_threads(V))
 	#define __parallefc(Z) DO_PRAGMA(omp parallel for collapse Z)
+	#define __ordered()    DO_PRAGMA(omp ordered)
+	#define parallel_num() omp_get_thread_num()
+	#define parallel_max() omp_get_max_threads()
 #else
 	#define __parallel
 	#define __parallef
 	#define __paralleft(V)	__unused __typeof(V) __POOR_CLANG__ = V;
 	#define __parallefc(Z)
+	#define __parallefo    
+	#define parallel_num() 1
+	#define parallel_max() 4
+	#define __ordered()    
+
 #endif
 
 #ifdef __cplusplus

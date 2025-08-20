@@ -53,6 +53,7 @@ src += [ 'notstd/opt.c' ]
 src += [ 'notstd/phq.c' ]
 
 src += [ 'src/huffman.c' ]
+src += [ 'src/bitdiet.c' ]
 src += [ 'src/app.c' ]
 
 ##############
@@ -89,7 +90,7 @@ add_global_link_arguments('-pthread', language:'c')
 add_global_arguments('-std=gnu2x', language: 'c')
 
 # open mp
-if get_option('openmp') > 0
+if get_option('openmp')
   message('openmp enabled')
   add_global_arguments('-fopenmp', language:'c')
   add_global_link_arguments('-fopenmp', language:'c')
