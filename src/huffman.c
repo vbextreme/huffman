@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <huffman.h>
 
+
 #define ANCHOR_MAX 4096
 #define MULTI_MAX  4
 
@@ -22,6 +23,26 @@ typedef struct bitmap{
 	uint8_t numbyte;
 }bitmap_s;
 
+#ifdef __AVX__
+#include <immintrin.h>
+#define AVX_BYTE 32
+__private void repetition(const uint8_t* data, const unsigned len, unsigned repeat[256]){
+	memset(repeat, 0, 256*sizeof(unsigned));
+	unsigned i = 0;
+	for(; i + AVX_BYTE < len; i += AVX_BYTE ){
+		__m256i v = _mm256_loadu_si256((const __m256i*)&data[i]);
+		alignas(AVX_BYTE) uint8_t tmp[AVX_BYTE];
+		_mm256_store_si256((__m256i*)tmp, v);
+		for( unsigned j = 0; j < AVX_BYTE; ++j ){
+			++repeat[tmp[j]];
+		}
+	}
+	
+	for(; i < len; ++i ){
+		++repeat[data[i]];
+	}
+}
+#else
 __private void repetition(const uint8_t* data, const unsigned len, unsigned repeat[256]){
 	memset(repeat, 0, 256*sizeof(unsigned));
 	for( unsigned i = 0; i < len; ++i ){
@@ -29,6 +50,7 @@ __private void repetition(const uint8_t* data, const unsigned len, unsigned repe
 		++repeat[data[i]];
 	}
 }
+#endif
 
 __private int pcmp(const void* a, const void* b){
 	return ((const node_s*)a)->repeat > ((const node_s*)b)->repeat;
